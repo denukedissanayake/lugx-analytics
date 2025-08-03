@@ -1,0 +1,62 @@
+name: Build and Push Analytics Service Docker Image to DockerHub
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  IMAGE_NAME: lugx-analytics-service
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Log in to DockerHub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t $DOCKERHUB_USERNAME/$IMAGE_NAME:latest .
+
+      - name: Push image to DockerHub
+        run: docker push $DOCKERHUB_USERNAME/$IMAGE_NAME:latest
+
+      - name: Deploy to EC2 Kubernetes
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Checking if Git is installed..."
+            if ! command -v git &> /dev/null
+            then
+              echo "Git is not installed. Installing..."
+              sudo yum install -y git
+            else
+              echo "Git is already installed:"
+              git --version
+            fi
+
+            cd /home/ec2-user
+
+            if [ ! -d "k8s-manifests" ]; then
+              git clone https://github.com/denukedissanayake/k8s-manifests.git
+            else
+              cd k8s-manifests && git pull origin main && cd ..
+            fi
+
+            cd k8s-manifests
+
+            # Apply all manifests
+            kubectl apply -f analytics-deployment.yml
+            kubectl apply -f analytics-service.yml
+            kubectl apply -f service-ingress.yml
+
+            # Force rollout restart to reload pods with the latest image
+            kubectl rollout restart deployment analytics-deployment
