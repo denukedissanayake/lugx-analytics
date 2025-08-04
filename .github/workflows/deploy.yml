@@ -10,7 +10,7 @@ env:
   IMAGE_NAME: lugx-analytics-service
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-to-docker-hub:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,6 +26,11 @@ jobs:
       - name: Push image to DockerHub
         run: docker push $DOCKERHUB_USERNAME/$IMAGE_NAME:latest
 
+  deploy-to-ec2:
+    needs: build-and-deploy-to-docker-hub
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Deploy to EC2 Kubernetes
         uses: appleboy/ssh-action@v1.0.3
         with:
