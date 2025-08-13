@@ -19,15 +19,16 @@ app.add_middleware(
 
 class Event(BaseModel):
     event_type: str
+    page: str
+    time_spent: str
     element_id: str
+    user_info: str
 
 def get_click_house_client():
     return clickhouse_connect.get_client(
         host='j94mx47wmo.ap-south-1.aws.clickhouse.cloud',
-        user='default',
-        password='QLdIYc~B~0LU8',
-        # user=os.getenv("CLICKHOUSE_USER"),
-        # password=os.getenv("CLICKHOUSE_PASSWORD"),
+        user=os.getenv("CLICKHOUSE_USER"),
+        password=os.getenv("CLICKHOUSE_PASSWORD"),
         secure=True
     )
 
@@ -35,7 +36,7 @@ def get_click_house_client():
 def get_events(limit: int = 100):
     client = get_click_house_client()
     result = client.query(f"""
-        SELECT event_type, element_id, timestamp
+        SELECT event_type, element_id, timestamp, page, time_spent, user_info
         FROM web_events
         ORDER BY timestamp DESC
         LIMIT {limit}
@@ -43,7 +44,7 @@ def get_events(limit: int = 100):
     rows = result.result_rows
 
     return [
-        {"event_type": row[0], "element_id": row[1], "timestamp": row[2].isoformat()}
+        {"event_type": row[0], "element_id": row[1], "timestamp": row[2].isoformat(), "page": row[3], "time_spent": row[4], "user_info": row[5],}
         for row in rows
     ]
 
@@ -53,10 +54,10 @@ def add_event(event: Event):
     client = get_click_house_client()
     client.insert(
         "web_events",
-        [[event.event_type, event.element_id, timestamp]],
-        column_names=["event_type", "element_id", "timestamp"]
+        [[event.event_type, event.element_id, timestamp, event.page, event.time_spent, event.user_info]],
+        column_names=["event_type", "element_id", "timestamp", "page", "time_spent", "user_info"]
     )
-    return {"message": "Event added with server timestamp"}
+    return {"message": f"Event added with server timestamp - {event}"}
 
 
 
